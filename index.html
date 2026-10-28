@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Invite your friends</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --violet: #5a3cf0; --violet-deep: #3a22b8; --ink: #170f3b; --mint: #43e0a0;
+    --sheet: #ffffff; --sheet-text: #170f3b; --muted: #6a6488; --line: #e0dbf5;
+    --field: #f4f2fc; --focus: #170f3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --violet: #3a22b8; --violet-deep: #20106e; --sheet: #1f1650; --sheet-text: #f4f1ff;
+            --muted: #a9a2d3; --line: #342a7a; --field: #2a1f68; --focus: #ffffff; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(120% 70% at 50% 0%, var(--violet) 0%, var(--violet-deep) 100%) fixed;
+    color: #fff;
+  }
+  .hero { padding: 40px 22px 0; max-width: 480px; margin: 0 auto; }
+  h1 { font-size: clamp(2.1rem, 9vw, 2.8rem); line-height: 1.02; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px; }
+  .lede { margin: 0; font-size: 1.02rem; line-height: 1.45; color: rgba(255,255,255,.82); max-width: 32ch; }
+
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    max-width: 520px; margin: 0 auto;
+    background: var(--sheet); color: var(--sheet-text);
+    border-radius: 26px 26px 0 0;
+    padding: 20px 0 calc(22px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -12px 40px rgba(0,0,0,.25);
+  }
+  .sheet h2 { margin: 0 0 14px; text-align: center; font-size: 1.05rem; font-weight: 800; }
+  .msg { padding: 0 18px; }
+  label { display: block; font-size: .85rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  textarea {
+    width: 100%; font: inherit; font-size: 1rem; line-height: 1.4; color: inherit;
+    background: var(--field); border: 2px solid transparent; border-radius: 14px;
+    padding: 12px 14px; resize: none; min-height: 84px;
+  }
+  textarea:focus { outline: none; border-color: var(--violet); }
+  .linkchip { margin: 8px 2px 0; font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
+  .linkchip b { color: var(--sheet-text); font-weight: 600; }
+
+  .row {
+    display: flex; gap: 4px; overflow-x: auto; padding: 18px 12px 4px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .row::-webkit-scrollbar { display: none; }
+  .tile {
+    flex: 0 0 76px; appearance: none; border: 0; background: none; font: inherit; color: inherit;
+    text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 6px 0; border-radius: 14px; cursor: pointer; font-size: .78rem; font-weight: 600; text-align: center;
+  }
+  .tile i {
+    width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+    color: #fff; font-style: normal; font-weight: 800; font-size: 1.35rem; line-height: 1;
+  }
+  .tile svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tile:active i { transform: scale(.94); }
+  .tile:focus-visible, textarea:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .tip { margin: 6px 20px 0; font-size: .8rem; color: var(--muted); }
+
+  .toast {
+    position: fixed; left: 50%; top: 18px; transform: translate(-50%, -12px);
+    background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 999px;
+    font-weight: 600; font-size: .92rem; opacity: 0; pointer-events: none;
+    transition: opacity .18s, transform .18s; max-width: calc(100% - 32px); text-align: center; z-index: 5;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+  .error { margin-top: 24px; background: var(--sheet); color: var(--sheet-text); border-radius: 22px; padding: 22px; line-height: 1.5; }
+  .error strong { display: block; font-size: 1.15rem; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="app"></div>
+
+<script>
+/* ============ EDIT THESE ============ */
+const CONFIG = {
+  serverName: "Creator's Hairtown",
+  // Starting text the member can edit. {server} is replaced with serverName.
+  // The invite link is always added after this text.
+  message: "I'm in the {server} Discord community and thought you'd like it. Come join me!"
+};
+/* ==================================== */
+
+(function () {
+  const app = document.getElementById('app');
+  const toastEl = document.getElementById('toast');
+
+  const code = new URLSearchParams(location.search).get('c') || '';
+  if (!/^[A-Za-z0-9-]{2,32}$/.test(code)) {
+    app.innerHTML = '<div class="hero"><h1>Invite your friends</h1><div class="error"><strong>This link is incomplete.</strong>' +
+      'Go back to Discord and tap the Share with friends button again.</div></div>';
+    return;
+  }
+
+  const link = 'https://discord.gg/' + code;
+  const enc = encodeURIComponent;
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isMobile = isIOS || /Android|Mobile/i.test(ua);
+  const canShare = typeof navigator.share === 'function';
+
+  const icons = {
+    copy: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/></svg>',
+    sms: '<svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.5 3.4 6L4.5 21l4.1-2.2c1.1.3 2.2.4 3.4.4 5.5 0 10-3.6 10-8s-4.5-8.2-10-8.2z"/></svg>',
+    mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+    more: '<svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'
+  };
+
+  // Each tile builds its URL from the current message, so edits apply immediately.
+  const tiles = [
+    { name: 'Copy link', bg: '#3b7cf4', icon: icons.copy, action: 'copy' },
+    { name: 'Messages', bg: '#2fb457', icon: icons.sms, mobileOnly: true,
+      href: (t, f) => 'sms:' + (isIOS ? '&' : '?') + 'body=' + enc(f) },
+    { name: 'X', bg: '#111111', icon: 'X', href: (t) => 'https://twitter.com/intent/tweet?text=' + enc(t) + '&url=' + enc(link) },
+    { name: 'WhatsApp', bg: '#25d366', icon: 'W', href: (t, f) => 'https://wa.me/?text=' + enc(f) },
+    { name: 'Facebook', bg: '#1877f2', icon: 'f', href: () => 'https://www.facebook.com/sharer/sharer.php?u=' + enc(link) },
+    { name: 'Telegram', bg: '#2aa3e0', icon: 'T', href: (t) => 'https://t.me/share/url?url=' + enc(link) + '&text=' + enc(t) },
+    { name: 'LINE', bg: '#06c755', icon: 'L', href: (t, f) => 'https://line.me/R/msg/text/?' + enc(f) },
+    { name: 'Email', bg: '#6a6488', icon: icons.mail, href: (t, f) => 'mailto:?subject=' + enc('Join me on Discord') + '&body=' + enc(f) },
+    { name: 'More', bg: '#4a9df8', icon: icons.more, action: 'more', needsShare: true }
+  ].filter(t => (!t.mobileOnly || isMobile) && (!t.needsShare || canShare));
+
+  const defaultText = CONFIG.message.replace('{server}', CONFIG.serverName);
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  app.innerHTML =
+    '<div class="hero"><h1>Invite your friends</h1>' +
+    '<p class="lede">Pick an app, choose a contact, and send. Your link is already filled in.</p></div>' +
+    '<section class="sheet" aria-label="Share your invite">' +
+      '<h2>Share invite</h2>' +
+      '<div class="msg"><label for="msg">Your message (you can edit it)</label>' +
+        '<textarea id="msg" rows="3" maxlength="240">' + esc(defaultText) + '</textarea>' +
+        '<div class="linkchip">Link added automatically: <b>' + esc(link) + '</b></div></div>' +
+      '<div class="row">' +
+        tiles.map((t, i) => {
+          const inner = '<i style="background:' + t.bg + '" aria-hidden="true">' + t.icon + '</i><span>' + t.name + '</span>';
+          return t.action
+            ? '<button class="tile" type="button" data-i="' + i + '">' + inner + '</button>'
+            : '<a class="tile" data-i="' + i + '" href="#"' + (/^https/.test(link) ? '' : '') + '>' + inner + '</a>';
+        }).join('') +
+      '</div>' +
+      '<p class="tip">Facebook shares the link only, so it can’t show your message.</p>' +
+    '</section>';
+
+  const msgEl = document.getElementById('msg');
+  const getText = () => (msgEl.value.trim() || defaultText);
+  const getFull = () => getText() + ' ' + link;
+
+  function refreshLinks() {
+    const t = getText(), f = getFull();
+    document.querySelectorAll('a.tile').forEach(a => {
+      const tile = tiles[+a.dataset.i];
+      const href = tile.href(t, f);
+      a.href = href;
+      if (/^https/.test(href)) { a.target = '_blank'; a.rel = 'noopener'; }
+    });
+  }
+  msgEl.addEventListener('input', refreshLinks);
+  refreshLinks();
+
+  let timer;
+  function toast(msg) {
+    toastEl.textContent = msg; toastEl.classList.add('show');
+    clearTimeout(timer); timer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(link); toast('Link copied'); }
+    catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+      toast(ok ? 'Link copied' : 'Could not copy. Press and hold the link to copy it.');
+    }
+  }
+
+  async function openNative() {
+    try { await navigator.share({ title: 'Join me on Discord', text: getText(), url: link }); }
+    catch (e) { if (e && e.name !== 'AbortError') toast('Could not open the share menu. Pick an app instead.'); }
+  }
+
+  document.querySelectorAll('button.tile').forEach(b => {
+    b.addEventListener('click', () => {
+      const tile = tiles[+b.dataset.i];
+      if (tile.action === 'copy') copyLink();
+      if (tile.action === 'more') openNative();
+    });
+  });
+})();
+</script>
+</body>
+</html>
