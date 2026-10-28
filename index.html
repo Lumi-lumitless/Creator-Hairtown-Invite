@@ -116,19 +116,19 @@ const CONFIG = {
     copy: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/></svg>',
     sms: '<svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.5 3.4 6L4.5 21l4.1-2.2c1.1.3 2.2.4 3.4.4 5.5 0 10-3.6 10-8s-4.5-8.2-10-8.2z"/></svg>',
     mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+    insta: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="16.8" cy="7.2" r="0.6" style="fill:currentColor"/></svg>',
     more: '<svg viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'
   };
 
   // Each tile builds its URL from the current message, so edits apply immediately.
   const tiles = [
     { name: 'Copy link', bg: '#3b7cf4', icon: icons.copy, action: 'copy' },
-    { name: 'Messages', bg: '#2fb457', icon: icons.sms, mobileOnly: true,
-      href: (t, f) => 'sms:' + (isIOS ? '&' : '?') + 'body=' + enc(f) },
-    { name: 'X', bg: '#111111', icon: 'X', href: (t) => 'https://twitter.com/intent/tweet?text=' + enc(t) + '&url=' + enc(link) },
     { name: 'WhatsApp', bg: '#25d366', icon: 'W', href: (t, f) => 'https://wa.me/?text=' + enc(f) },
+    // Instagram has no way to pre-fill a message, so this copies it, then opens Instagram messages.
+    { name: 'Instagram', bg: 'linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)', icon: icons.insta,
+      copyOnClick: true, href: () => 'https://www.instagram.com/direct/new/' },
     { name: 'Facebook', bg: '#1877f2', icon: 'f', href: () => 'https://www.facebook.com/sharer/sharer.php?u=' + enc(link) },
     { name: 'Telegram', bg: '#2aa3e0', icon: 'T', href: (t) => 'https://t.me/share/url?url=' + enc(link) + '&text=' + enc(t) },
-    { name: 'LINE', bg: '#06c755', icon: 'L', href: (t, f) => 'https://line.me/R/msg/text/?' + enc(f) },
     { name: 'Email', bg: '#6a6488', icon: icons.mail, href: (t, f) => 'mailto:?subject=' + enc('Join me on Discord') + '&body=' + enc(f) },
     { name: 'More', bg: '#4a9df8', icon: icons.more, action: 'more', needsShare: true }
   ].filter(t => (!t.mobileOnly || isMobile) && (!t.needsShare || canShare));
@@ -152,7 +152,7 @@ const CONFIG = {
             : '<a class="tile" data-i="' + i + '" href="#"' + (/^https/.test(link) ? '' : '') + '>' + inner + '</a>';
         }).join('') +
       '</div>' +
-      '<p class="tip">Facebook shares the link only, so it can’t show your message.</p>' +
+      '<p class="tip">Facebook shares the link only. Instagram copies your message, so paste it into a chat.</p>' +
     '</section>';
 
   const msgEl = document.getElementById('msg');
@@ -177,15 +177,15 @@ const CONFIG = {
     clearTimeout(timer); timer = setTimeout(() => toastEl.classList.remove('show'), 2200);
   }
 
-  async function copyLink() {
-    try { await navigator.clipboard.writeText(link); toast('Link copied'); }
+  async function copyText(value, okMsg) {
+    try { await navigator.clipboard.writeText(value); toast(okMsg); }
     catch (e) {
       const ta = document.createElement('textarea');
-      ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      ta.value = value; ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.select();
       let ok = false; try { ok = document.execCommand('copy'); } catch (_) {}
       document.body.removeChild(ta);
-      toast(ok ? 'Link copied' : 'Could not copy. Press and hold the link to copy it.');
+      toast(ok ? okMsg : 'Could not copy. Press and hold the link to copy it.');
     }
   }
 
@@ -194,10 +194,16 @@ const CONFIG = {
     catch (e) { if (e && e.name !== 'AbortError') toast('Could not open the share menu. Pick an app instead.'); }
   }
 
+  document.querySelectorAll('a.tile').forEach(a => {
+    if (tiles[+a.dataset.i].copyOnClick) {
+      a.addEventListener('click', () => copyText(getFull(), 'Message copied. Paste it into your Instagram chat.'));
+    }
+  });
+
   document.querySelectorAll('button.tile').forEach(b => {
     b.addEventListener('click', () => {
       const tile = tiles[+b.dataset.i];
-      if (tile.action === 'copy') copyLink();
+      if (tile.action === 'copy') copyText(link, 'Link copied');
       if (tile.action === 'more') openNative();
     });
   });
